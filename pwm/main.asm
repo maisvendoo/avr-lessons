@@ -10,6 +10,8 @@
 ;----------------------------------------------------------
 		.dseg
 
+tcount:	.byte	4
+
 ;----------------------------------------------------------
 ;	Flash
 ;----------------------------------------------------------
@@ -19,15 +21,42 @@
 ;----------------------------------------------------------
 ;	Interrupt handlers
 ;----------------------------------------------------------
+Timer0_handler:
+
+		PUSHF
+
+		push r17
+		push r18
+		push r19
+
+		INCQ tcount
+
+		pop r19
+		pop r18
+		pop r17
+
+		POPF
+
+		reti
 
 ;----------------------------------------------------------
-;	CPU init
+;	CPU initialization
 ;----------------------------------------------------------
 		.include	"core_init.inc"
 
 ;----------------------------------------------------------
 ;	Internal hardware init
 ;----------------------------------------------------------
+		SETBM DDRD, 4
+		SETBM DDRD, 5
+
+		OUTI TCCR1A, 2 << COM1A0 | 2 << COM1B0 | 0 << WGM11 | 1 << WGM10
+		OUTI TCCR1B, 0 << WGM13 | 1 << WGM12 | 1 << CS10
+
+		SETBM TIMSK, TOIE0
+		OUTI TCCR0, 1 << CS00
+
+		sei
 
 ;----------------------------------------------------------
 ;	External hardware init
@@ -41,7 +70,45 @@
 ;	Main loop
 ;----------------------------------------------------------
 Main:
+
+	lds r16, tcount
+	lds r17, tcount + 1
+
+	cpi r16, 0x10
+	brcs NoMatch
+	cpi r17, 0x01
+	brcs NoMatch
 	
+Match:
+
+	cli
+	
+	in r16, OCR1AL
+	in r17, OCR1AH
+
+	inc r16
+	
+	out OCR1AH, r17	
+	out OCR1AL, r16
+
+	out OCR1BH, r17	
+	out OCR1BL, r16
+
+	sei
+
+	clr r16
+	cli
+
+	out TCNT0, r16
+	sts tcount, r16
+	sts tcount + 1, r16
+	sts tcount + 2, r16
+	sts tcount + 3, r16
+
+	sei
+
+NoMatch:
+
 	jmp Main
 
 ;----------------------------------------------------------
